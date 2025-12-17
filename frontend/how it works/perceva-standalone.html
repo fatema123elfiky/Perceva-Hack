@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Perceva | Computer Vision & Object Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+    <script src="https://kit.fontawesome.com/cc3140ab58.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2"></script>
+    <style>
+        html {
+            color-scheme: dark;
+        }
+
+        body {
+            background-color: #141118;
+            color: white;
+        }
+
+        @keyframes gradient-move {
+            0% { background-position: 0% 50; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50; }
+        }
+
+        .animated-gradient {
+            background: linear-gradient(90deg, #7f13ec, #5120f5, #ff3b84);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradient-move 5s ease infinite;
+            display: inline-block;
+        }
+
+        .gradient-btn {
+            background: linear-gradient(90deg, #7f13ec, #5120f5, #ff3b84);
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            color: white;
+        }
+
+        .gradient-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .gradient-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        video {
+            background: #000;
+            border-radius: 8px;
+            width: 100%;
+            max-height: 360px;
+            object-fit: cover;
+        }
+
+        .detection-badge {
+            background-color: #ff3b84;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: inline-block;
+            margin: 4px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: #1b1723;
+            padding: 32px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 448px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            right: 16px;
+            top: 12px;
+            background: none;
+            border: none;
+            color: #b9a9cc;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            color: white;
+        }
+
+        input[type="text"], input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 12px;
+            border-radius: 6px;
+            background-color: #211c27;
+            border: 1px solid #473b54;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus {
+            outline: none;
+            ring: 2px;
+            border-color: #a54bff;
+        }
+
+        input::placeholder {
+            color: #888;
+        }
+
+        .accessibility-controls {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .accessibility-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+            background-color: #4e4e6f;
+            color: white;
+        }
+
+        .accessibility-btn:hover {
+            background-color: #6a6a8f;
+        }
+
+        .accessibility-label {
+            text-align: center;
+            font-size: 12px;
+            color: #a0a0a0;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body class="bg-[#141118] text-white">
+    <!-- NAVBAR -->
+    <header class="flex items-center justify-between border-b border-[#302839] px-10 py-4 sticky top-0 z-50 bg-[#141118]" role="banner">
+        <a href="#home" class="flex items-center gap-3 text-white no-underline" aria-label="Perceva Home">
+            <h1 class="flex items-center gap-3 text-3xl md:text-4xl font-black tracking-tight animated-gradient">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+                Perceva
+            </h1>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-8 text-base font-medium" role="navigation" aria-label="Main navigation">
+            <a href="#home" class="text-white hover:text-[#ff3b84] transition-colors">Home</a>
+            <a href="#mission" class="text-white hover:text-[#ff3b84] transition-colors">Our Mission</a>
+            <a href="#how-it-works" class="text-white hover:text-[#ff3b84] transition-colors">How It Works</a>
+            <a href="#products" class="text-white hover:text-[#ff3b84] transition-colors">Products</a>
+            <a href="#contact" class="text-white hover:text-[#ff3b84] transition-colors">Contact</a>
+        </nav>
+
+        <button id="getStartedBtn" class="gradient-btn text-white font-bold px-6 py-2 rounded-lg transition-all">
+            Get Started
+        </button>
+    </header>
+
+    <!-- HOME SECTION -->
+    <main class="flex-1 flex items-center justify-center bg-[#141118] text-white" role="main">
+        <div class="text-center max-w-3xl px-4 py-20" id="home">
+            <h1 class="text-6xl md:text-7xl font-black mb-6 animated-gradient">Perceva</h1>
+            <p class="text-xl md:text-2xl text-gray-300 mb-8">Advanced Computer Vision & Object Detection Platform</p>
+            <p class="text-gray-400 mb-12 text-lg">Transform how you analyze visual data with real-time camera vision analysis and intelligent object detection.</p>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+                <button id="goToCamera" class="gradient-btn text-white font-bold px-8 py-3 rounded-lg transition-all">Get Started</button>
+                <a href="#how-it-works" class="border-2 border-[#a54bff] text-white font-bold px-8 py-3 rounded-lg hover:bg-[#a54bff] hover:bg-opacity-10 transition-all inline-block">Learn More</a>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">
+                <div class="p-6 bg-[#0a0a0c] rounded-lg border border-[#302839]">
+                    <i class="fas fa-camera text-3xl text-[#ff3b84] mb-4 block"></i>
+                    <h3 class="text-lg font-bold mb-2">Real-time Analysis</h3>
+                    <p class="text-gray-400 text-sm">Analyze video streams and images in real-time with powerful detection algorithms</p>
+                </div>
+                <div class="p-6 bg-[#0a0a0c] rounded-lg border border-[#302839]">
+                    <i class="fas fa-brain text-3xl text-[#a54bff] mb-4 block"></i>
+                    <h3 class="text-lg font-bold mb-2">AI-Powered</h3>
+                    <p class="text-gray-400 text-sm">Leverage cutting-edge machine learning for accurate object detection</p>
+                </div>
+                <div class="p-6 bg-[#0a0a0c] rounded-lg border border-[#302839]">
+                    <i class="fas fa-bolt text-3xl text-[#ff3b84] mb-4 block"></i>
+                    <h3 class="text-lg font-bold mb-2">Lightning Fast</h3>
+                    <p class="text-gray-400 text-sm">Get instant results with our optimized processing engine</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- CAMERA SECTION -->
+    <section id="how-it-works" class="bg-[#0a0a0c] py-20 border-t border-[#302839]">
+        <div class="w-full max-w-4xl mx-auto px-4">
+            <h2 class="text-4xl font-bold mb-6 text-[#ff3b84] text-center">Camera Vision Analysis</h2>
+            <p class="text-center text-gray-300 mb-8">Start your camera or upload videos and images to detect objects in real-time.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Camera Section -->
+                <div class="border-2 border-dashed border-[#4e4e6f] rounded-lg p-6 flex flex-col items-center justify-center min-h-[400px] bg-[#141118] overflow-hidden" role="region" aria-label="Camera control section">
+                    <!-- Video Container -->
+                    <div id="videoContainer" style="display: none; width: 100%;">
+                        <video id="cameraFeed" muted playsinline autoplay></video>
+
+                        <!-- Detection Display Overlay -->
+                        <div id="detectionOverlay" class="mt-4 p-3 bg-[#1b1723] rounded-lg border border-[#302839]">
+                            <p class="text-sm text-gray-300 text-center">
+                                <i class="fas fa-eye"></i> Detecting: <span id="detectionText" class="text-[#ff3b84] font-semibold">Initializing...</span>
+                            </p>
+                        </div>
+
+                        <!-- Detection Badges -->
+                        <div id="detectionBadges" class="mt-4 text-center" style="display: none;"></div>
+                    </div>
+
+                    <!-- Initial Controls -->
+                    <div id="cameraControls">
+                        <p id="cameraMessage" class="text-center text-gray-300 mb-4">Click the button to start your camera.</p>
+                        <button id="startCameraBtn" class="flex items-center gap-2 bg-[#ee0979] hover:bg-[#ff6a00] text-white font-bold px-6 py-3 rounded-lg transition-colors">
+                            <i class="fas fa-video"></i>
+                            Start Camera
+                        </button>
+                    </div>
+
+                    <!-- Stop Button -->
+                    <button id="stopCameraBtn" style="display: none;" class="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-lg transition-colors mt-4">
+                        <i class="fas fa-stop"></i>
+                        Stop Camera
+                    </button>
+                </div>
+
+                <!-- Upload Section -->
+                <div class="border-2 border-dashed border-[#4e4e6f] rounded-lg p-6 flex flex-col items-center justify-center min-h-[400px] bg-[#141118]" role="region" aria-label="File upload section">
+                    <i class="fas fa-cloud-arrow-up text-4xl text-[#a54bff] mb-4"></i>
+                    <p class="text-gray-300 mb-4">Upload videos or images for analysis</p>
+                    <button id="chooseFilesBtn" class="flex items-center gap-2 bg-[#a54bff] hover:bg-[#8a3fbf] text-white font-bold px-6 py-3 rounded-lg transition-colors">
+                        <i class="fas fa-folder-open"></i>
+                        Choose Files
+                    </button>
+                    <input id="fileInput" type="file" multiple accept="video/*,image/*" style="display: none;" />
+                </div>
+            </div>
+
+            <!-- Uploaded Files List -->
+            <div id="uploadedFilesList" style="display: none; margin-top: 32px;">
+                <div class="border border-[#302839] rounded-lg p-6 bg-[#0a0a0c]">
+                    <h3 class="text-xl font-bold text-[#a54bff] mb-4">Uploaded Files <span id="fileCount">(0)</span></h3>
+                    <div id="filesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="border-t border-[#302839] py-8 text-center text-[#ab9db9] bg-[#141118]">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex flex-wrap items-center justify-center gap-6 mb-6">
+                <a class="text-[#ab9db9] hover:text-[#ff3b84] transition-colors">Privacy Policy</a>
+                <a class="text-[#ab9db9] hover:text-[#ff3b84] transition-colors">Terms of Service</a>
+                <a class="text-[#ab9db9] hover:text-[#ff3b84] transition-colors">Contact Us</a>
+            </div>
+            <p class="text-[#ab9db9]">© 2025 Perceva. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- AUTH MODAL -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <button id="closeModal" class="modal-close">✕</button>
+            <h2 class="text-2xl font-bold mb-4 text-[#a54bff]">Sign Up</h2>
+            <form id="authForm">
+                <input type="text" id="username" placeholder="Username" />
+                <input type="email" id="email" placeholder="Email" />
+                <input type="password" id="password" placeholder="Password" />
+                <button type="submit" class="gradient-btn w-full py-2 rounded-lg font-bold">Continue</button>
+            </form>
+            <p class="text-sm text-[#b9a9cc] mt-4 text-center">Already have an account? <a id="loginLink" href="#" class="text-[#ff3b84] hover:underline">Log in</a></p>
+        </div>
+    </div>
+
+    <!-- ACCESSIBILITY CONTROLS -->
+    <div class="accessibility-controls">
+        <button id="screenReaderBtn" class="accessibility-btn" title="Enable/Disable Screen Reader">
+            <i class="fas fa-volume-mute"></i>
+            <span class="hidden sm:inline">Reader Off</span>
+        </button>
+        <button id="infoBtn" class="accessibility-btn" title="Read Page Description">
+            <i class="fas fa-info-circle"></i>
+            <span class="hidden sm:inline">Info</span>
+        </button>
+        <div class="accessibility-label">
+            <p>Accessibility</p>
+            <p>Controls</p>
+        </div>
+    </div>
+
+    <script>
+        // ===== GLOBALS =====
+        let screenReaderEnabled = false;
+        let currentStream = null;
+        let detectionModel = null;
+        let detectionIntervalId = null;
+        let uploadedFiles = [];
+
+        // ===== DOM ELEMENTS =====
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const stopCameraBtn = document.getElementById('stopCameraBtn');
+        const cameraFeed = document.getElementById('cameraFeed');
+        const cameraControls = document.getElementById('cameraControls');
+        const videoContainer = document.getElementById('videoContainer');
+        const cameraMessage = document.getElementById('cameraMessage');
+        const detectionText = document.getElementById('detectionText');
+        const detectionBadges = document.getElementById('detectionBadges');
+        const detectionOverlay = document.getElementById('detectionOverlay');
+
+        const chooseFilesBtn = document.getElementById('chooseFilesBtn');
+        const fileInput = document.getElementById('fileInput');
+        const uploadedFilesList = document.getElementById('uploadedFilesList');
+        const filesGrid = document.getElementById('filesGrid');
+        const fileCount = document.getElementById('fileCount');
+
+        const getStartedBtn = document.getElementById('getStartedBtn');
+        const goToCameraBtn = document.getElementById('goToCamera');
+        const authModal = document.getElementById('authModal');
+        const closeModal = document.getElementById('closeModal');
+        const authForm = document.getElementById('authForm');
+
+        const screenReaderBtn = document.getElementById('screenReaderBtn');
+        const infoBtn = document.getElementById('infoBtn');
+
+        // ===== TEXT TO SPEECH =====
+        function announce(text) {
+            if (screenReaderEnabled && 'speechSynthesis' in window) {
+                speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1;
+                utterance.pitch = 1;
+                utterance.volume = 1;
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        // ===== LOAD OBJECT DETECTION MODEL =====
+        async function loadModel() {
+            try {
+                await tf.ready();
+                detectionModel = await cocoSsd.load();
+                console.log('COCO-SSD model loaded successfully');
+                announce('Object detection model loaded');
+            } catch (error) {
+                console.error('Error loading model:', error);
+                announce('Error loading detection model');
+            }
+        }
+
+        // ===== DETECT OBJECTS =====
+        async function detectObjects() {
+            if (!cameraFeed || !detectionModel || cameraFeed.readyState !== cameraFeed.HAVE_ENOUGH_DATA) return;
+
+            try {
+                const predictions = await detectionModel.estimateObjects(cameraFeed);
+
+                if (predictions.length > 0) {
+                    const uniqueClasses = new Set();
+                    predictions.forEach(pred => {
+                        uniqueClasses.add(pred.class);
+                    });
+
+                    const objectsList = Array.from(uniqueClasses).slice(0, 5);
+                    detectionText.textContent = objectsList.join(', ');
+
+                    // Show badges
+                    detectionBadges.innerHTML = '';
+                    objectsList.forEach(obj => {
+                        const badge = document.createElement('span');
+                        badge.className = 'detection-badge';
+                        badge.textContent = obj;
+                        detectionBadges.appendChild(badge);
+                    });
+                    detectionBadges.style.display = 'block';
+                } else {
+                    detectionText.textContent = 'Scanning...';
+                    detectionBadges.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Detection error:', error);
+            }
+        }
+
+        // ===== CAMERA FUNCTIONS =====
+        startCameraBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+                    audio: false
+                });
+
+                currentStream = stream;
+                cameraFeed.srcObject = stream;
+
+                cameraFeed.onloadedmetadata = () => {
+                    cameraFeed.play().catch(err => console.error('Play error:', err));
+                };
+
+                cameraFeed.play().then(() => {
+                    videoContainer.style.display = 'block';
+                    cameraControls.style.display = 'none';
+                    startCameraBtn.style.display = 'none';
+                    stopCameraBtn.style.display = 'flex';
+                    announce('Camera is now active');
+
+                    // Load model and start detection
+                    if (!detectionModel) {
+                        loadModel();
+                    }
+                    if (!detectionIntervalId) {
+                        detectionIntervalId = setInterval(detectObjects, 500);
+                    }
+                }).catch(err => {
+                    // Even if play fails, try detection
+                    videoContainer.style.display = 'block';
+                    cameraControls.style.display = 'none';
+                    startCameraBtn.style.display = 'none';
+                    stopCameraBtn.style.display = 'flex';
+                    
+                    if (!detectionModel) {
+                        loadModel();
+                    }
+                    if (!detectionIntervalId) {
+                        detectionIntervalId = setInterval(detectObjects, 500);
+                    }
+                    console.error('Camera play error:', err);
+                });
+            } catch (error) {
+                let errorMsg = 'Error accessing camera';
+                if (error.name === 'NotAllowedError') {
+                    errorMsg = 'Camera permission denied. Please allow camera access.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg = 'No camera found on this device.';
+                }
+                cameraMessage.textContent = errorMsg;
+                announce(errorMsg);
+                console.error('Camera error:', error);
+            }
+        });
+
+        stopCameraBtn.addEventListener('click', () => {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            if (detectionIntervalId) {
+                clearInterval(detectionIntervalId);
+                detectionIntervalId = null;
+            }
+            cameraFeed.srcObject = null;
+            videoContainer.style.display = 'none';
+            cameraControls.style.display = 'flex';
+            stopCameraBtn.style.display = 'none';
+            startCameraBtn.style.display = 'flex';
+            announce('Camera stopped');
+        });
+
+        // ===== FILE UPLOAD =====
+        chooseFilesBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files) {
+                Array.from(files).forEach(file => {
+                    if (file.type.startsWith('video/') || file.type.startsWith('image/')) {
+                        uploadedFiles.push(file);
+                    }
+                });
+                updateFilesList();
+            }
+        });
+
+        function updateFilesList() {
+            if (uploadedFiles.length === 0) {
+                uploadedFilesList.style.display = 'none';
+                return;
+            }
+
+            uploadedFilesList.style.display = 'block';
+            fileCount.textContent = `(${uploadedFiles.length})`;
+            filesGrid.innerHTML = '';
+
+            uploadedFiles.forEach((file, index) => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'flex items-center justify-between p-4 bg-[#1b1723] rounded-lg border border-[#302839]';
+                fileDiv.innerHTML = `
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <i class="fas ${file.type.startsWith('video/') ? 'fa-video' : 'fa-image'} text-[#ff3b84]"></i>
+                        <div class="min-w-0">
+                            <p class="text-white truncate text-sm font-medium">${file.name}</p>
+                            <p class="text-gray-400 text-xs">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                    </div>
+                `;
+                filesGrid.appendChild(fileDiv);
+            });
+        }
+
+        // ===== MODAL =====
+        [getStartedBtn, goToCameraBtn].forEach(btn => {
+            btn.addEventListener('click', () => authModal.classList.add('active'));
+        });
+
+        closeModal.addEventListener('click', () => authModal.classList.remove('active'));
+
+        authForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            authModal.classList.remove('active');
+            announce('Sign up successful');
+        });
+
+        // ===== ACCESSIBILITY =====
+        screenReaderBtn.addEventListener('click', () => {
+            screenReaderEnabled = !screenReaderEnabled;
+            screenReaderBtn.textContent = screenReaderEnabled ? '🔊 Reader On' : '🔇 Reader Off';
+            announce(screenReaderEnabled ? 'Screen reader enabled' : 'Screen reader disabled');
+        });
+
+        infoBtn.addEventListener('click', () => {
+            announce('Welcome to Perceva. Camera Vision Analysis page. Left side: start camera to view and detect objects. Right side: upload files. Accessibility controls at bottom right.');
+        });
+
+        // ===== SMOOTH SCROLL =====
+        document.querySelectorAll('a[href^="#"]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                const target = document.querySelector(link.getAttribute('href'));
+                if (target) {
+                    e.preventDefault();
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+
+        // Initialize
+        console.log('Perceva loaded successfully');
+    </script>
+</body>
+</html>
